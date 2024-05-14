@@ -130,4 +130,4 @@ if uploaded_file is not None:
             st.pyplot(fig)
         
 
-st.sidebar.text("Copyright \u00A9 2024 Vishal Verma")
+st.sidebar.text("Copyright \u00A9 2024 Ayush Nainwal")
