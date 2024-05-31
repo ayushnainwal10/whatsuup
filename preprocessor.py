@@ -1,53 +1,65 @@
-import re
 import pandas as pd
+import re
 
-def preprocess(data):
-    pattern = re.compile(r'\d{2}/\d{2}/\d{2}, \d{1,2}:\d{2} [ap]m\s*-\s*')
-    messages = re.split(pattern, data)
-    messages = messages[1:]
-    dates = re.findall(pattern, data)
+def preprocess(data, time_format):
+    # Define patterns for 12-hour and 24-hour formats
+    pattern_12hr = r"(\d{2}/\d{2}/\d{2}, \d{1,2}:\d{2}\s?[ap]m) - ([^:]+): (.+)"
+    pattern_24hr = r"(\d{2}/\d{2}/\d{2}, \d{2}:\d{2}) - ([^:]+): (.+)"
 
-    df = pd.DataFrame({'user_message':messages,'message_date':dates})
+    # Initialize lists to store extracted information
+    dates, users, messages, date_formats = [], [], [], []
 
-    #convert message_date type
-    df['message_date'] = pd.to_datetime(df['message_date'], format='%d/%m/%y, %I:%M %p - ')
-    df.rename(columns={'message_date':'date'} , inplace=True)
-    
-    users = []
-    messages = []
+    # Choose the correct pattern and date format based on user selection
+    if time_format == "12-hour":
+        pattern = pattern_12hr
+        date_format = '%d/%m/%y, %I:%M %p'
+    else:
+        pattern = pattern_24hr
+        date_format = '%d/%m/%y, %H:%M'
 
-    for message in df['user_message']:
-        entry = re.split(r'([\w\W]+?):\s*', message, maxsplit=1)
-        if len(entry) > 1:
-            users.append(entry[1])
-            messages.append(entry[2])
+    for entry in data.splitlines():
+        match = re.match(pattern, entry)
+        if match:
+            date, user, message = match.groups()
+            dates.append(date)
+            users.append(user)
+            messages.append(message)
+            date_formats.append(date_format)
         else:
-            users.append('group_notification')
-            messages.append(entry[0])
+            try:
+                date_time, remainder = entry.split(' - ', 1)
+                dates.append(date_time)
+                users.append('group_notification')
+                messages.append(remainder)
+                date_formats.append(None)  # No specific format for group notifications
+            except ValueError as e:
+                print(f"Error processing entry: {entry}")
+                print(e)
 
-    df['user'] = users
-    df['message'] = messages
-    df.drop(columns={'user_message'}, inplace=True)
+    # Create a DataFrame with the extracted information
+    df = pd.DataFrame({'date': dates, 'user': users, 'message': messages, 'date_format': date_formats})
 
+    # Convert 'date' column to datetime type using the appropriate formats
+    df['date'] = df.apply(lambda row: pd.to_datetime(row['date'], format=row['date_format'], errors='coerce') if row['date_format'] else pd.NaT, axis=1)
+
+    # Extract additional date and time components
     df['year'] = df['date'].dt.year
     df['month'] = df['date'].dt.month_name()
     df['num_month'] = df['date'].dt.month
     df['only_date'] = df['date'].dt.date
     df['day'] = df['date'].dt.day
-    df['day_name'] = df['date'].dt.day_name()   
+    df['day_name'] = df['date'].dt.day_name()
     df['hour'] = df['date'].dt.hour
     df['minute'] = df['date'].dt.minute
 
     period = []
-    for hour in df[['day_name','hour']]['hour']:
-        if(hour == 23):
-            period.append(str(hour) + "-" + str('00'))
-        elif(hour == 0):
-            period.append(str('00') + "-" + str(hour+1))
+    for hour in df['hour']:
+        if hour == 23:
+            period.append(f"{hour}-00")
+        elif hour == 0:
+            period.append(f"00-{hour+1}")
         else:
-            period.append(str(hour) + "-" + str(hour+1))
+            period.append(f"{hour}-{hour+1}")
     df['time_period'] = period
 
     return df
-
-    
