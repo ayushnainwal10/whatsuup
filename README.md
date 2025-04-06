@@ -1,6 +1,7 @@
 # WhatsApp Chat Analyzer
 
 This is a Python-based application built using Streamlit for analyzing and visualizing WhatsApp chat data.
+https://whatsuup.streamlit.app/
 
 ## Overview
 
